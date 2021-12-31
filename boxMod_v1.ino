@@ -1,5 +1,5 @@
 //-----setting-----//
-#define okB 2
+#define fireB 2
 #define upB 4
 #define downB 5
 #define mosfet 8
@@ -8,9 +8,11 @@
 #define sleepDel 10000
 #define voltAdr 5
 #define eeAdr 14
+#define batLow 3.0  //нижний порог аккума
 
 #define voltCalibr 0
 //-----setting-----//
+
 
 //-----lib & define & init-----//
 #include "EEPROMex.h"
@@ -20,7 +22,7 @@ OLED oled(SDA, SCL);
 extern uint8_t MediumFontRus[]; //ширина символа 6, высота 8
 
 #include "lib.h"
-Butt ok(okB);
+Butt ok(fireB);
 Butt up(upB);
 Butt down(downB);
 
@@ -32,11 +34,13 @@ Butt down(downB);
 #endif
 //-----lib & define & init-----//
 
+
 //-----special variables-----//
-byte watts;
+uint8_t maxW;
 bool fireOk;
 struct {
-  byte watt;
+  uint8_t watt;
+  uint16_t counter;
 } data;
 
 float voltConst = 1.1;
@@ -49,9 +53,15 @@ float ohms = 0.3;
 
 int PWM, PWM_f, PWM_old = 800;
 float PWM_filter_k = 0.1;
-int maxW;
+
+bool upFlag, upState;
+bool downFlag, downState;
+bool fireFlag, fireState;
+uint32_t upTmr, downTmr, fireTmr;
 //-----special variables-----//
-//-----global func-----//
+
+
+//-----func-----//
 void calibration() {
   voltConst = 1.1; // начальаня константа калибровки
   Serial.print("Real VCC is: ");
@@ -101,41 +111,43 @@ int cap(int v) {  //вернет заряд в %
     capacity = map(v, 3400, 2600, 8, 0);
   return capacity;
 }
-//-----global func-----//
-
-
-
+//-----func-----//
 
 
 void setup() {
+#ifdef voltCalibr
   Serial.begin(9600);
+#endif
+
   Timer1.initialize(40);
-  pinMode(mosfet, OUTPUT);
   Timer1.disablePwm(mosfet);
+
+  pinMode(mosfet, OUTPUT);
   digitalWrite(mosfet, LOW);
 
   if (voltCalibr) calibration();
   voltConst = EEPROM.readFloat(voltAdr);
 
-  if (EEPROM.readByte(eeAdr - 1) != eeKey) {
-    data.watt = watts = 20;
+  if (EEPROM.readByte(eeAdr - 1) != eeKey) {  //запись данных если шо
+    data.watt = 20;
+    data.counter = 0;
     EEPROM.updateBlock(eeAdr, data);
     EEPROM.writeByte(eeAdr - 1, eeKey);
     debug("invalid key");
   }
   EEPROM.readBlock(eeAdr, data);
-  watts = data.watt;
 
   oled.begin();
   oled.setFont(MediumFontRus);
 
   //batVoltOld = analogRead(A1) * (readVcc() / 1023.0);
-  batVoltOld = readVcc();
-  batVolt = batVoltOld;
+  batVolt = batVoltOld = readVcc();
 
-  oled.print("boxmod", CENTER, 24);
+  oled.print("boxmod", CENTER, 16);
+  oled.print("by Dizer", CENTER, 32);
   oled.update();
   delay(700);
+  oled.clrScr();
 }
 
 
@@ -144,8 +156,95 @@ void setup() {
 
 
 #define sq(x) x*x
-bool firePos = false;
 void loop() {
+  //-----battery-----//
+  if (millis() - batTmr > 20) {
+    batTmr = millis();
+    batVolt = readVcc();
+    batVoltF = filterK * batVolt + (1 - filterK) * batVoltOld;  // фильтруем
+    batVoltOld = batVoltF;
+    //batVoltF -> напряжение на аккуме
+
+    if (batVoltF <= batLow * 1000) {  //если аккум сел
+      Timer1.disablePwm(mosfet);
+      digitalWrite(mosfet, 0);
+      oled.clrScr();
+      oled.print("battery", CENTER, 16);
+      oled.print("LOW", CENTER, 32);
+      oled.update();
+      delay(1000);
+      oled.clrScr();
+      while (1); //спим блять
+    } else fireOk = true;
+  }
+  //-----battery-----//
+
+
+
+  //-----buttonHandler-----//
+  upState = !digitalRead(upB);
+  downState = !digitalRead(downB);
+  fireState = !digitalRead(fireB);
+
+  if (upState && !upFlag && (millis() - upTmr > 20)) {
+    if (++data.watt >= 80)data.watt = 80;
+    upFlag = true;
+    upTmr = millis();
+    changeTmr = millis();
+    debug("press");
+  }
+  if (!upState && upFlag) {
+    upFlag = false;
+    debug("release");
+  }
+
+  if (downState && !downFlag && (millis() - downTmr > 20)) {
+    if (--data.watt < 1)data.watt = 1;
+    downFlag = true;
+    downTmr = millis();
+    changeTmr = millis();
+    debug("press");
+  }
+  if (!downState && downFlag) {
+    downFlag = false;
+    debug("release");
+  }
+
+  if (fireState && !fireFlag && (millis() - fireTmr > 20)) {
+    data.counter++;
+    fireFlag = true;
+    fireTmr = millis();
+    debug("press");
+  }
+  if (!fireState && fireFlag) {
+    fireFlag = false;
+    debug("release");
+  }
+  //-----buttonHandler-----//
+
+
+
+  //-----saving data-----//
+  if (millis() - changeTmr > changeDel) {
+    changeTmr = millis();
+    EEPROM.updateBlock(eeAdr, data);
+    debug("changes saved");
+  }
+  //-----saving data-----//
+
+
+
+  //-----rendering-----//
+  oled.clrScr();
+  oled.print("pwm: " + (String)PWM_f, CENTER, 0);
+  oled.print("watt: " + (String)data.watt, CENTER, 16);
+  oled.print("bat: " + (String)((float)batVoltF / 1000), CENTER, 32);
+  oled.print(digitalRead(mosfet)?:, CENTER, 48);
+  oled.update();
+  //-----rendering-----//
+}
+
+/*
   up.tick(); ok.tick(); down.tick();
 
   if (up.press()) {
@@ -190,13 +289,13 @@ void loop() {
       digitalWrite(mosfet, firePos);
     }
 
-    /*
-    oled.clrScr();
-    oled.print((String)batVolt, CENTER, 0);
-    oled.print((String)batVoltF, CENTER, 16);
-    oled.print((String)capacity, CENTER, 32);
-    oled.update();
-    */
+
+    //oled.clrScr();
+    //oled.print((String)batVolt, CENTER, 0);
+    //oled.print((String)batVoltF, CENTER, 16);
+    //oled.print((String)capacity, CENTER, 32);
+    //oled.update();
+
     oled.clrScr();
     oled.print("pwm: " + (String)PWM_f, CENTER, 0);
     oled.print("watt: " + (String)watts, CENTER, 16);
@@ -215,4 +314,4 @@ void loop() {
     EEPROM.updateBlock(eeAdr, data);
     debug("changes saved");
   }
-}
+*/

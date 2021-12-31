@@ -51,3 +51,4 @@ private:
     int _del;
     uint32_t _tmr;
 };
+
