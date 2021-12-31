@@ -1,0 +1,7 @@
+{
+    "port": "COM5",
+    "board": "arduino:avr:nano",
+    "sketch": "boxMod_v2.ino",
+    "programmer": "arduino:avrispmkii",
+    "configuration": "cpu=atmega328old"
+}
