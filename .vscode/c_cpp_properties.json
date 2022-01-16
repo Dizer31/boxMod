@@ -21,7 +21,6 @@
                 "C:\\Program Files (x86)\\Arduino\\libraries\\EEPROMex",
                 "C:\\Program Files (x86)\\Arduino\\libraries\\TimerOne-master",
                 "C:\\Program Files (x86)\\Arduino\\libraries\\OLED_I2C",
-                "C:\\Program Files (x86)\\Arduino\\libraries\\GyverEncoder",
                 "c:\\users\\1\\appdata\\local\\arduino15\\packages\\arduino\\tools\\avr-gcc\\7.3.0-atmel3.6.1-arduino7\\lib\\gcc\\avr\\7.3.0\\include",
                 "c:\\users\\1\\appdata\\local\\arduino15\\packages\\arduino\\tools\\avr-gcc\\7.3.0-atmel3.6.1-arduino7\\lib\\gcc\\avr\\7.3.0\\include-fixed",
                 "c:\\users\\1\\appdata\\local\\arduino15\\packages\\arduino\\tools\\avr-gcc\\7.3.0-atmel3.6.1-arduino7\\avr\\include"

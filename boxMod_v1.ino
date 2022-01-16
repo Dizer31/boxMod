@@ -1,33 +1,30 @@
-#define debugMode
-#ifdef debugMode
-#define debug(x) Serial.println(x)
-#else
-#define debug(x)
-#endif
-//-----debug-----//
-
 //-----setting-----//
+#define debugMode
+
 #define fireB 2
 #define upB 4
 #define downB 5
 #define mosfet 9
 
 #define changeDel 3000
-#define sleepDel 10000
 #define voltAdr 5
 #define eeAdr 14
 #define batLow 3.2  //нижний порог аккума
 
 #define voltCalibr 0
-//-----setting-----//
 
+#ifdef debugMode
+#define debug(x) Serial.println(x)
+#else
+#define debug(x)
+#endif
+//-----setting-----//
 
 //-----lib & define & init-----//
 #include "EEPROMex.h"
 #include "lib_v1.2.h"
 #include <TimerOne.h>
 #include <OLED_I2C.h>
-#include <GyverEncoder.h>
 OLED oled(SDA, SCL);
 extern uint8_t MediumFontRus[]; //ширина символа 6, высота 8
 
@@ -35,7 +32,6 @@ Button fire(fireB);
 Button down(downB);
 Button up(upB);
 //-----lib & define & init-----//
-
 
 //-----special variables-----//
 struct {
@@ -56,7 +52,6 @@ float filterK = 0.04;
 int PWM = 100, PWM_f = 500, PWM_old = 500;
 float PWM_filter_k = 0.1;
 //-----special variables-----//
-
 
 //-----func-----//
 void calibration() {
@@ -108,7 +103,6 @@ uint8_t cap(int v) {  //вернет заряд в %
 		capacity = map(v, 3400, 2600, 8, 0);
 	return capacity;
 }
-
 bool checkBat(uint16_t x) {
 	if (x <= batLow * 1000) {  //если аккум сел
 		Timer1.disablePwm(mosfet);
@@ -125,11 +119,8 @@ bool checkBat(uint16_t x) {
 }
 //-----func-----//
 
-
 void setup() {
-#ifdef voltCalibr
 	Serial.begin(9600);
-#endif
 
 	up.setDeb(50);
 	up.setHold(500);
@@ -145,7 +136,6 @@ void setup() {
 
 	Timer1.initialize(40);
 	Timer1.disablePwm(mosfet);
-
 	pinMode(mosfet, OUTPUT);
 	digitalWrite(mosfet, LOW);
 
@@ -173,7 +163,6 @@ void setup() {
 	delay(700);
 	oled.clrScr();
 }
-
 
 #define sq(x) x*x
 void loop() {
@@ -218,6 +207,7 @@ void loop() {
 	}
 	//-----battery-----//
 
+	//-----button-----//
 	if (down.isSingle() || down.isHolded()) {
 		debug("down");
 		data.watt -= 1;
@@ -237,35 +227,7 @@ void loop() {
 
 	if (fire.isPress())fireOk = true;
 	if (fire.isRelease())fireOk = false;
-
-	/*
-	if (fire.isRelease())firePos = false;
-	if (fire.isPress()) firePos = true;
-
-	if (enc.isPress()) {
-		if (++mode >= 2)mode = 0;
-	}
-
-	if (enc.isLeft()) {
-		debug("left");
-		switch (mode) {
-			case 0:data.watt -= 1; data.watt = max(data.watt, 0);
-				break;
-			case 1:data.ohms -= 0.1; data.ohms = max(data.ohms, 0.1);
-				break;
-		}
-	}
-
-	if (enc.isRight()) {
-		debug("right");
-		switch (mode) {
-			case 0:data.watt += 1;data.watt = min(maxW, data.watt);
-				break;
-			case 1:data.ohms += 0.1;data.ohms = min(3, data.ohms);
-				break;
-		}
-	}
-	*/
+	//-----button-----//
 
 	//-----saving data-----//
 	if (changeFlag && (millis() - changeTmr > changeDel)) {
