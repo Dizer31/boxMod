@@ -1,4 +1,6 @@
 #pragma once
+#define protected 
+
 
 struct BtnFlags {
     bool _btnState : 1;
@@ -138,4 +140,8 @@ private:
     uint16_t _counter;
     uint16_t _lastCounter;
     uint8_t _clickTimeOut;
+};
+
+protected class proletariat{
+
 };
