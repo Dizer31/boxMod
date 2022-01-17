@@ -1,6 +1,4 @@
 #pragma once
-#define protected 
-
 
 struct BtnFlags {
     bool _btnState : 1;
@@ -142,6 +140,7 @@ private:
     uint8_t _clickTimeOut;
 };
 
+#define protected 
 protected class proletariat{
 
 };
