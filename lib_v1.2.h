@@ -26,12 +26,12 @@ public:
         pinMode(_pin, INPUT_PULLUP);
     }
 
-    void setStep(uint8_t x) { _step = x; }  //del isHolded()
-    void setHold(uint8_t x) { _hold = x; }  //del
-    void setDeb(uint8_t x) { _deb = x; }    //del
+    void setStep(uint8_t x) { _step = x; }  //set del isHolded()
+    void setHold(uint8_t x) { _hold = x; }  //set del
+    void setDeb(uint8_t x) { _deb = x; }    //set del
     void setClickTimeOut(uint8_t x) { _clickTimeOut = x; }
     uint16_t getClikcs() { return _lastCounter; }
-    
+
     bool isHold() {
         if (BtnFlags._btnHoldFlag) {
             BtnFlags._btnHoldFlag = false;
@@ -135,7 +135,7 @@ private:
     uint32_t _tmr;      //таймер
     uint32_t _stepTmr;  //таймер функции isHolded()
 
-    uint16_t _counter;
-    uint16_t _lastCounter;
-    uint8_t _clickTimeOut;
+    uint8_t _counter;
+    uint8_t _lastCounter;
+    uint16_t _clickTimeOut;
 };

@@ -1,29 +1,34 @@
 //-----setting-----//
-#define debugMode
+#define debugMode 1
+#define voltageBoostModule 1
 
-#define fireB 2
-#define upB 4
-#define downB 5
-#define mosfet 9
+#define fireB 2			//не изменять!!
+#define upB 5
+#define downB 4
+#define mosfet 9		//не изменять!!
+#define batPin A7		//пин к которому подключен аккум
 
-#define changeDel 3000
-#define voltAdr 5
-#define eeAdr 14
-#define batLow 3.2  //нижний порог аккума
+#define changeDel 4		//в сек
+#define sleepDel 30		//в сек
+#define voltAdr 5		//адрес ячейки в которую пишется константа напряжения
+#define eeAdr 14		//адрес ячейки в которую пишутся данные
+#define batLow 3.1  	//нижний порог аккума
 
-#define voltCalibr 0
+#define voltCalibr 0	//калибровка напряжения
+//-----setting-----//
 
-#ifdef debugMode
+
+//-----lib & define & init-----//
+#ifdef debugMode == 1
 #define debug(x) Serial.println(x)
 #else
 #define debug(x)
 #endif
-//-----setting-----//
 
-//-----lib & define & init-----//
 #include "EEPROMex.h"
 #include "lib_v1.2.h"
 #include <TimerOne.h>
+#include <LowPower.h>
 #include <OLED_I2C.h>
 OLED oled(SDA, SCL);
 extern uint8_t MediumFontRus[]; //ширина символа 6, высота 8
@@ -32,6 +37,7 @@ Button fire(fireB);
 Button down(downB);
 Button up(upB);
 //-----lib & define & init-----//
+
 
 //-----special variables-----//
 struct {
@@ -45,13 +51,16 @@ float voltConst = 1.1;
 const byte eeKey = 107;
 
 uint32_t batTmr, changeTmr;
+volatile uint32_t wakeTmr;
 bool changeFlag;
+volatile bool globalflag = false;
 
 int batVolt, batVoltF, batVoltOld;
-float filterK = 0.04;
+float filterK = 0.2;
 int PWM = 100, PWM_f = 500, PWM_old = 500;
-float PWM_filter_k = 0.1;
+float PWM_filter_k = 0.6;
 //-----special variables-----//
+
 
 //-----func-----//
 void calibration() {
@@ -68,6 +77,7 @@ void calibration() {
 	EEPROM.writeFloat(voltAdr, real_const); // запись в EEPROM
 	while (1); // уйти в бесконечный цикл
 }
+
 long readVcc() {
 #if defined(__AVR_ATmega32U4__) || defined(__AVR_ATmega1280__) || defined(__AVR_ATmega2560__)
 	ADMUX = _BV(REFS0) | _BV(MUX4) | _BV(MUX3) | _BV(MUX2) | _BV(MUX1);
@@ -89,6 +99,7 @@ long readVcc() {
 	result = voltConst * 1023 * 900 / result; // расчёт реального VCC
 	return result;                // возвращает VCC
 }
+
 uint8_t cap(int v) {  //вернет заряд в %
 	uint8_t capacity;
 	if (v > 3870)
@@ -103,24 +114,102 @@ uint8_t cap(int v) {  //вернет заряд в %
 		capacity = map(v, 3400, 2600, 8, 0);
 	return capacity;
 }
+
 bool checkBat(uint16_t x) {
-	if (x <= batLow * 1000) {  //если аккум сел
+	if (x < batLow * 1000) {  //если аккум сел
 		Timer1.disablePwm(mosfet);
 		digitalWrite(mosfet, 0);
 		oled.clrScr();
 		oled.print("battery", CENTER, 16);
 		oled.print("LOW", CENTER, 32);
 		oled.update();
-		delay(1000);
-		oled.clrScr();
-		while (1); //спим блять
+		delay(700);
+		while (1) {
+			fire.tick();
+			if (fire.isTriple())return false;
+		}
 	}
 	return true;
 }
+
+void wakeUp1() { wakeUp(); }
+
+void wakeUp() {
+	detachInterrupt(0);
+	delay(50);
+	globalflag = true;
+	oled.clrScr();
+	oled.print("wakeUP?", CENTER, 32);
+	oled.update();
+
+	bool flag = false;
+	uint8_t con = 0;
+	bool press, state;
+	while (1) {
+		//fire.tick();
+		//if (fire.isPress()) { wakeTmr = millis(); }
+		//if (fire.isTriple()) { wakeTmr = millis();break; }
+		//if (millis() - wakeTmr > 3000) { wakeTmr = millis();oled.clrScr();oled.update();sleep(); }
+		state = !digitalRead(2);
+		if (state && !press) {
+			press = true;
+			con++;
+			if (con > 4) { flag = true;break; }
+		}
+
+		if (millis() - wakeTmr > 3000) {
+			flag = false;
+			break;
+		}
+
+		if (!state && press) press = false;
+	}
+
+	wakeTmr = millis();
+	if (flag) {
+		oled.print("wakeUP!!!", CENTER, 32);
+		oled.update();
+		delay(300);
+		oled.clrScr();
+		oled.update();
+	} else {
+		sleep();
+	}
+}
+
+void sleep() {
+	oled.clrScr();
+	oled.print("Bye", CENTER, 32);
+	oled.update();
+
+	delay(300);
+	oled.clrScr();
+	oled.update();
+
+	digitalWrite(mosfet, 0);
+	Timer1.disablePwm(mosfet);
+
+	delay(50);
+	attachInterrupt(0, wakeUp1, LOW);
+	delay(50);
+
+	LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF);
+}
+
+void dataInit() {
+	data.watt = 30;
+	data.ohms = 0.3;
+}
 //-----func-----//
+
 
 void setup() {
 	Serial.begin(9600);
+
+	Timer1.initialize(40);
+	Timer1.disablePwm(mosfet);
+	pinMode(mosfet, OUTPUT);
+	digitalWrite(mosfet, LOW);
 
 	up.setDeb(50);
 	up.setHold(500);
@@ -134,17 +223,11 @@ void setup() {
 	down.setHold(500);
 	down.setClickTimeOut(160);
 
-	Timer1.initialize(40);
-	Timer1.disablePwm(mosfet);
-	pinMode(mosfet, OUTPUT);
-	digitalWrite(mosfet, LOW);
-
 	if (voltCalibr) calibration();
 	voltConst = EEPROM.readFloat(voltAdr);
 
 	if (EEPROM.readByte(eeAdr - 1) != eeKey) {  //запись данных если шо
-		data.watt = 20;
-		data.ohms = 0.3;
+		dataInit();
 		EEPROM.updateBlock(eeAdr, data);
 		EEPROM.writeByte(eeAdr - 1, eeKey);
 		debug("invalid key");
@@ -154,8 +237,11 @@ void setup() {
 	oled.begin();
 	oled.setFont(MediumFontRus);
 
-	//batVoltOld = analogRead(A1) * (readVcc() / 1023.0);
+#if voltageBoostModule == 1
+	batVoltOld = analogRead(batPin) * (readVcc() / 1023.0);
+#else
 	batVolt = batVoltOld = readVcc();
+#endif
 
 	oled.print("boxmod", CENTER, 16);
 	oled.print("by Dizer", CENTER, 32);
@@ -164,17 +250,27 @@ void setup() {
 	oled.clrScr();
 }
 
+
 #define sq(x) x*x
 void loop() {
 	fire.tick();
 	up.tick();
 	down.tick();
 
+	if (globalflag) {
+		globalflag = false;
+		detachInterrupt(0);
+	}
 	//-----battery-----//
 	if (millis() - batTmr > 20) {
 		batTmr = millis();
 
+#if voltageBoostModule == 1	
+		batVolt = analogRead(batPin) * (readVcc() / 1023.0);
+#else
 		batVolt = readVcc();
+#endif
+
 		batVoltF = filterK * batVolt + (1 - filterK) * batVoltOld;  // фильтруем
 		batVoltOld = batVoltF;
 		//batVoltF -> напряжение на аккуме
@@ -183,8 +279,9 @@ void loop() {
 		if (checkBat(batVoltF)) {
 			PWM = (float)data.watt / maxW * 1023;                   // считаем значение для ШИМ сигнала
 			if (PWM > 1023) PWM = 1023;                                 // ограничил PWM "по тупому", потому что constrain сука не работает!
-			PWM_f = PWM_filter_k * PWM + (1 - PWM_filter_k) * PWM_old;  // фильтруем
-			PWM_old = PWM_f;                                            // фильтруем
+			PWM_f = PWM;	//закомментить если PWM фильтр включен     
+			//PWM_f = PWM_filter_k * PWM + (1 - PWM_filter_k) * PWM_old;  // фильтруем
+			//PWM_old = PWM_f;                                            // фильтруем
 		}
 
 		if (fireOk) {
@@ -197,13 +294,14 @@ void loop() {
 
 		oled.clrScr();
 		//oled.print("ver1.2 ", CENTER, 0);
-		oled.print(" watt: " + (String)data.watt, 0, 32);
-		oled.print(" pwm: " + (String)PWM_f, 0, 16);
-		//oled.print(" bat: " + (String)((float)batVoltF / 1000), 0, 48);
-		oled.print(" bat: " + (String)cap(batVoltF) + '%', 0, 48);
 		oled.print("mosf:" + (String)digitalRead(mosfet), CENTER, 0);
+		oled.print(" pwm: " + (String)PWM_f, 0, 16);
+		oled.print(" watt: " + (String)data.watt, 0, 32);
+		oled.print(" bat: " + (String)cap(batVoltF) + '%', 0, 48);
+		//oled.print(" bat: " + (String)((float)batVoltF / 1000), 0, 48);
 		//oled.print(">", 0, 16);
 		oled.update();
+		//debug((String)PWM_f + "   " + (String)data.watt + "   " +(String)(batVoltF));
 	}
 	//-----battery-----//
 
@@ -214,27 +312,42 @@ void loop() {
 		data.watt = max(data.watt, 1);
 		changeFlag = true;
 		changeTmr = millis();
+		wakeTmr = millis();
 	}
 
 	if (up.isSingle() || up.isHolded()) {
 		debug("up");
 		data.watt += 1;
 		data.watt = min(data.watt, maxW);
-		data.watt = min(data.watt, 80);
 		changeFlag = true;
 		changeTmr = millis();
+		wakeTmr = millis();
 	}
 
-	if (fire.isPress())fireOk = true;
-	if (fire.isRelease())fireOk = false;
+	if (fire.isPress()) {
+		wakeTmr = millis();
+		fireOk = true;
+	}
+
+	if (fire.isRelease()) {
+		wakeTmr = millis();
+		fireOk = false;
+	}
 	//-----button-----//
 
 	//-----saving data-----//
-	if (changeFlag && (millis() - changeTmr > changeDel)) {
-		changeFlag = false;
+	if (changeFlag && (millis() - changeTmr > changeDel * 1000)) {
 		changeTmr = millis();
+		changeFlag = false;
 		EEPROM.updateBlock(eeAdr, data);
 		debug("changes saved");
 	}
 	//-----saving data-----//
+
+	//-----sleep-----//
+	if (millis() - wakeTmr > sleepDel * 1000) {
+		wakeTmr = millis();
+		sleep();
+	}
+	//-----sleep-----//
 }
