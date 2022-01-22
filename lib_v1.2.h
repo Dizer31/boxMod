@@ -139,3 +139,8 @@ private:
     uint8_t _lastCounter;
     uint16_t _clickTimeOut;
 };
+
+#define protected 
+protected class proletariat{
+
+};
