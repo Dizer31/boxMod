@@ -19,10 +19,10 @@ public:
     Button(uint8_t pin, uint8_t deb = 50) {
         _pin = pin;
         _deb = deb;
-        _hold = 400;
-        _step = 200;
+        _hold = 500;
+        _step = 100;
         _counter = 0;
-        _clickTimeOut = 100;
+        _clickTimeOut = 160;
         pinMode(_pin, INPUT_PULLUP);
     }
 
@@ -56,6 +56,13 @@ public:
     bool isRelease() {
         if (BtnFlags._btnReleaseFlag) {
             BtnFlags._btnReleaseFlag = false;
+            return true;
+        } else return false;
+    }  
+
+    bool isMulti(uint8_t x){
+        if (BtnFlags._btnCounterFlag && _lastCounter == x) {
+            BtnFlags._btnCounterFlag = false;
             return true;
         } else return false;
     }
