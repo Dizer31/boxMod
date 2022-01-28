@@ -25,11 +25,11 @@
 #define debug(x)
 #endif
 
+#include <OLED_I2C.h>
 #include "EEPROMex.h"
 #include "lib_v1.2.h"
 #include <TimerOne.h>
 #include <LowPower.h>
-#include <OLED_I2C.h>
 OLED oled(SDA, SCL);
 extern uint8_t MediumFontRus[]; //ширина символа 6, высота 8
 
@@ -116,6 +116,7 @@ uint8_t cap(int v) {  //вернет заряд в %
 }
 
 bool checkBat(uint16_t x) {
+	return true;
 	if (x < batLow * 1000) {  //если аккум сел
 		Timer1.disablePwm(mosfet);
 		digitalWrite(mosfet, 0);
