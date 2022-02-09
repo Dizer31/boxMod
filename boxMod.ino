@@ -54,7 +54,7 @@ uint32_t batTmr, changeTmr, wakeTmr;
 volatile bool globalflag = false;
 
 int16_t batVolt, batVoltF, batVoltOld;
-float filterK = 0.2;
+float filterK = 0.1;
 int16_t PWM = 100, PWM_f = 500, PWM_old = 500;
 float PWM_filter_k = 0.6;
 //-----special variables-----//
@@ -62,15 +62,14 @@ float PWM_filter_k = 0.6;
 //-----func-----//
 void calibration() {
 	voltConst = 1.1; // начальаня константа калибровки
-	Serial.print("Real VCC is: ");
-	Serial.println(readVcc()); // общаемся с пользователем
-	Serial.println("Write your VCC (in millivolts)");
+	debug("Real VCC is: " + (String)readVcc()); // общаемся с пользователем
+	debug("Write your VCC (in millivolts)");
 	while (Serial.available() == 0);
 	int Vcc = Serial.parseInt();					 // напряжение от пользователя
 	float real_const = (float)1.1 * Vcc / readVcc(); // расчёт константы
-	Serial.print("New voltage constant: ");
-	Serial.println(real_const, 3);
-	Serial.println("Set vol_calibration 0, flash and enjoy!");
+	debug("New voltage constant: " + (String)real_const);
+	//Serial.println(real_const, 3);
+	debug("Set vol_calibration 0, flash and enjoy!");
 	EEPROM.writeFloat(voltAdr, real_const); // запись в EEPROM
 	while (1); // уйти в бесконечный цикл
 }
@@ -206,7 +205,7 @@ void draw() {
 	//oled.print("ver: 1.35 ", CENTER, 0);
 	oled.print(" bat: " + (String)cap(batVoltF) + '%', 0, 16);
 	oled.print(">watt: " + (String)data.watt, 0, 32);
-	oled.print("puffs:" + (String)data.counter, CENTER, 48);
+	oled.print(" puffs:" + (String)data.counter, 0, 48);
 	//oled.print(" bat: " + (String)((float)batVoltF / 1000), 0, 48);
 	//oled.print(">", 0, 16);
 	oled.update();
@@ -230,14 +229,13 @@ void setup() {
 		EEPROM.updateBlock(eeAdr, data);
 		EEPROM.writeByte(eeAdr - 1, eeKey);
 		debug("invalid key");
-	}
-	EEPROM.readBlock(eeAdr, data);
+	} else EEPROM.readBlock(eeAdr, data);
 
 	oled.begin();
 	oled.setFont(MediumFontRus);
 
 #if voltageBoostModule == 1
-	batVoltOld = analogRead(batPin) * (readVcc() / 1023.0);
+	batVolt = batVoltOld = analogRead(batPin) * (readVcc() / 1023.0);
 #else
 	batVolt = batVoltOld = readVcc();
 #endif
@@ -276,6 +274,7 @@ void loop() {
 		//batVoltF -> напряжение на аккуме
 		maxW = (float)(sq((float)batVoltF / 1000)) / data.ohms;
 		data.watt = min(data.watt, maxW);
+		data.watt = max(data.watt, 0);
 
 		if (checkBat(batVoltF)) {
 			PWM = (float)data.watt / maxW * 1023; // считаем значение для ШИМ сигнала
