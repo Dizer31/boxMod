@@ -51,7 +51,6 @@ float voltConst = 1.1;
 const byte eeKey = 108;
 
 uint32_t batTmr, changeTmr, wakeTmr;
-volatile bool globalflag = false;
 
 int16_t batVolt, batVoltF, batVoltOld;
 float filterK = 0.1;
@@ -128,7 +127,7 @@ bool checkBat(uint16_t x) {
 	return true;
 }
 
-void wakeUp1() { globalflag = true; } //wakeUp(); }
+void wakeUp1() { } //wakeUp(); }
 
 #if false
 void wakeUp() {
@@ -214,7 +213,9 @@ void draw() {
 //-----func-----//
 
 void setup() {
+#if debugMode == 1
 	Serial.begin(9600);
+#endif
 
 	Timer1.initialize(40);
 	Timer1.disablePwm(mosfet);
@@ -253,12 +254,6 @@ void loop() {
 	up.tick();
 	down.tick();
 
-	if (globalflag) {
-		wakeTmr = millis();
-		globalflag = false;
-		detachInterrupt(0);
-	}
-
 	//-----battery-----//
 	if (millis() - batTmr >= 20) {
 		batTmr = millis();
@@ -279,9 +274,9 @@ void loop() {
 		if (checkBat(batVoltF)) {
 			PWM = (float)data.watt / maxW * 1023; // считаем значение для ШИМ сигнала
 			if (PWM > 1023)PWM = 1023; // ограничил PWM "по тупому", потому что constrain сука не работает!
-			//PWM_f = PWM;	//закомментить если PWM фильтр включен
-			PWM_f = PWM_filter_k * PWM + (1 - PWM_filter_k) * PWM_old;  // фильтруем
-			PWM_old = PWM_f;                                            // фильтруем
+			PWM_f = PWM;	//закомментить если PWM фильтр включен
+			//PWM_f = PWM_filter_k * PWM + (1 - PWM_filter_k) * PWM_old;  // фильтруем
+			//PWM_old = PWM_f;                                            // фильтруем
 		}
 		if (setingsFlag)settings(); else draw();
 
