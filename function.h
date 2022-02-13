@@ -71,45 +71,7 @@ uint8_t cap(int v) { //вернет заряд в %
     return capacity;
 }
 
-void wakeUp() {
-    globalFlag = true;
-}
-
-#if false
-void wakeUp() {
-    detachInterrupt(0);
-    delay(50);
-    globalflag = true;
-    oled.clrScr();
-    oled.print("wakeUP?", CENTER, 32);
-    oled.update();
-
-    bool flag = false;
-    uint8_t con = 0;
-    bool press, state;
-    while (1) {
-        state = !digitalRead(fireB);
-        if (state && !press) {
-            press = true;
-            if (++con >= 4) {
-                flag = true;
-                break;
-            }
-        }
-
-        if (!state && press)press = false;
-        if (millis() - wakeTmr > 3000)sleep();
-    }
-
-    if (flag) {
-        oled.print("wakeUP!!!", CENTER, 32);
-        oled.update();
-        delay(300);
-        oled.clrScr();
-        oled.update();
-    }
-}
-#endif
+void wakeUp() { globalFlag = true; }
 
 void sleep() {
     debug("sleep");
@@ -171,7 +133,7 @@ void batTick() {
         globalFlag = false;
         detachInterrupt(0);
         delay(50);
-        
+
         batTmr.reboot();
         sleepTmr.reboot();
         changeTmr.reboot();
