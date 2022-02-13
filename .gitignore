@@ -2,3 +2,4 @@ boxMod_v1.ino
 .gitignore
 .vscode/c_cpp_properties.json
 .vscode/arduino.json
+lib_v1.2.h
