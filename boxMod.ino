@@ -9,8 +9,8 @@
 #define mosfet 9  //не изменять!!
 #define batPin A7 //пин к которому подключен аккум
 
-#define changeDel 4 //в сек
-#define sleepDel 30 //в сек
+#define changeDel 7 //в сек
+#define sleepDel 14 //в сек
 #define voltAdr 5	//адрес ячейки в которую пишется константа напряжения
 #define eeAdr 14	//адрес ячейки в которую пишутся данные
 #define batLow 3.1	//нижний порог аккума
@@ -53,6 +53,7 @@ void loop() {
 	up.tick();
 	down.tick();
 	fire.tick();
+	globalTick();
 	buttonTick();
 
 	batTmr.checkFunc(batTick);

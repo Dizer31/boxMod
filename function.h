@@ -20,7 +20,6 @@ float PWM_filter_k = 0.6;
 //-----special variables-----//
 
 //-----func-----//
-#pragma region 
 long readVcc() {
 #if defined(__AVR_ATmega32U4__) || defined(__AVR_ATmega1280__) || defined(__AVR_ATmega2560__)
     ADMUX = _BV(REFS0) | _BV(MUX4) | _BV(MUX3) | _BV(MUX2) | _BV(MUX1);
@@ -79,7 +78,7 @@ void sleep() {
     oled.print("Bye", CENTER, 32);
     oled.update();
 
-    delay(300);
+    delay(500);
     oled.clrScr();
     oled.update();
 
@@ -129,16 +128,6 @@ void draw() {
 }
 
 void batTick() {
-    if (globalFlag) {
-        globalFlag = false;
-        detachInterrupt(0);
-        delay(50);
-
-        batTmr.reboot();
-        sleepTmr.reboot();
-        changeTmr.reboot();
-    }
-
     //-----battery-----//
 #if voltageBoostModule == 1
     batVolt = analogRead(batPin) * (readVcc() / 1023.0);
@@ -172,6 +161,7 @@ void batTick() {
             d = 0;
             data.counter++;
             dflag = false;
+            changeTmr.flag = true;
             changeTmr.reboot();
         }
     } else {
@@ -195,6 +185,42 @@ void dataUpdate() {
     oled.update();
     EEPROM.updateBlock(eeAdr, data);
     debug("changes saved");
+}
+
+void globalTick() {
+    if (globalFlag) {
+        globalFlag = false;
+        detachInterrupt(0);
+        delay(50);
+        sleepTmr.reboot();
+
+        uint8_t con = 0;
+        bool gFlag = false;
+        while (1) {
+            fire.tick();
+            sleepTmr.checkFunc(sleep);
+
+            if (fire.isPress()) {
+                if (++con >= 5) { gFlag = true; break; }
+                sleepTmr.reboot();
+            }
+
+            oled.clrScr();
+            oled.print((String)con + "/5", CENTER, 32);
+            oled.update();
+        }
+
+        if (gFlag) {
+            delay(50);
+            oled.clrScr();
+            oled.print("wakeUp", CENTER, 32);
+            oled.update();
+
+            batTmr.reboot();
+            sleepTmr.reboot();
+            changeTmr.reboot();
+        }
+    }
 }
 
 void buttonTick() {
@@ -226,7 +252,7 @@ void buttonTick() {
         sleepTmr.reboot();
     }
 
-    if (fire.isMultiple(6)) {
+    if (fire.isMultiple(6) && setingsFlag) {
         oled.clrScr();
         oled.print("reset", CENTER, 0);
         oled.print("to", CENTER, 16);
@@ -242,7 +268,8 @@ void buttonTick() {
         fireOk = true;
     }
     if (fire.isRelease()) fireOk = false;
-    if (fire.isMultiple(3) || fire.isMultiple(4))setingsFlag = !setingsFlag;
+    if (fire.isMultiple(3))setingsFlag = !setingsFlag;
+    if (fire.isMultiple(5))sleep();
     //-----button-----//
 }
 
@@ -281,5 +308,4 @@ void start() {
     delay(700);
     oled.clrScr();
 }
-#pragma endregion
 //-----func-----//
