@@ -1,5 +1,5 @@
 //-----setting-----//
-#define debugMode 0
+#define debugMode 1
 #define voltageBoostModule 1
 #define IGNORE  0	//ignore battery voltage
 
@@ -9,8 +9,8 @@
 #define mosfet 9  //не изменять!!
 #define batPin A7 //пин к которому подключен аккум
 
-#define changeDel 7 //в сек
-#define sleepDel 14 //в сек
+#define changeDel 1000 //в сек
+#define sleepDel 8 //в сек
 #define voltAdr 5	//адрес ячейки в которую пишется константа напряжения
 #define eeAdr 14	//адрес ячейки в которую пишутся данные
 #define batLow 3.1	//нижний порог аккума
@@ -24,7 +24,8 @@
 #else
 #define debug(x)
 #endif
-#define sq(x) x*x
+#define sq(x) (x)*(x)
+#define constr(x, min, max) (x >= min && x <= max ? x : (x < min? min : max))
 
 #include <OLED_I2C.h>
 #include <TimerOne.h>
@@ -46,14 +47,16 @@ Timer batTmr(20);
 //-----lib & define & init-----//
 
 void setup() {
+	Serial.begin(9600);
 	start();
 }
 
 void loop() {
+	Serial.println(millis());
+	globalTick();
 	up.tick();
 	down.tick();
 	fire.tick();
-	globalTick();
 	buttonTick();
 
 	batTmr.checkFunc(batTick);

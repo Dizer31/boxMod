@@ -14,7 +14,7 @@ float voltConst = 1.1;
 const byte eeKey = 108;
 
 int16_t batVolt, batVoltF, batVoltOld;
-float filterK = 0.1;
+float filterK = 0.07;
 int16_t PWM = 100, PWM_f = 500, PWM_old = 500;
 float PWM_filter_k = 0.6;
 //-----special variables-----//
@@ -70,7 +70,11 @@ uint8_t cap(int v) { //вернет заряд в %
     return capacity;
 }
 
-void wakeUp() { globalFlag = true; }
+void wakeUp() {
+    batTmr.reboot();
+    sleepTmr.reboot();
+    changeTmr.reboot();
+}
 
 void sleep() {
     debug("sleep");
@@ -89,6 +93,7 @@ void sleep() {
     attachInterrupt(0, wakeUp, LOW);
     delay(50);
 
+    globalFlag = true;
     LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF);
 }
 
@@ -139,8 +144,7 @@ void batTick() {
     batVoltOld = batVoltF;
     //batVoltF -> напряжение на аккуме
     maxW = (float)(sq((float)batVoltF / 1000)) / data.ohms;
-    data.watt = min(data.watt, maxW);
-    data.watt = max(data.watt, 0);
+    data.watt = constr(data.watt, 1, maxW);
 
     if (checkBat(batVoltF)) {
         PWM = (float)data.watt / maxW * 1023; // считаем значение для ШИМ сигнала
@@ -189,32 +193,30 @@ void dataUpdate() {
 
 void globalTick() {
     if (globalFlag) {
-        globalFlag = false;
         detachInterrupt(0);
         delay(50);
-        sleepTmr.reboot();
+        batTmr.setPeriod(5000);
+        oled.clrScr();
+        oled.print("unlock?", CENTER, 32);
+        oled.update();
 
-        uint8_t con = 0;
-        bool gFlag = false;
+        bool sleepFlag = false;
         while (1) {
             fire.tick();
-            sleepTmr.checkFunc(sleep);
-
-            if (fire.isPress()) {
-                if (++con >= 5) { gFlag = true; break; }
-                sleepTmr.reboot();
-            }
-
-            oled.clrScr();
-            oled.print((String)con + "/5", CENTER, 32);
-            oled.update();
+            if (fire.isPress())batTmr.reboot();
+            if (fire.isMultiple(5) || fire.isMultiple(4)) { sleepFlag = false; break; }
+            if (batTmr.check()) { sleepFlag = true; break; }
         }
 
-        if (gFlag) {
-            delay(50);
+        if (sleepFlag) {
+            batTmr.setPeriod(20);
+            sleep();
+        } else {
+            globalFlag = false;
             oled.clrScr();
-            oled.print("wakeUp", CENTER, 32);
+            oled.print("wake up", CENTER, 32);
             oled.update();
+            delay(300);
 
             batTmr.reboot();
             sleepTmr.reboot();
@@ -229,6 +231,7 @@ void buttonTick() {
         debug("down");
         if (setingsFlag) {
             data.ohms -= 0.05;
+            data.ohms = min(data.ohms, 0.005);
         } else {
             data.watt -= 1;
             data.watt = max(data.watt, 1);
@@ -252,6 +255,7 @@ void buttonTick() {
         sleepTmr.reboot();
     }
 
+    /*
     if (fire.isMultiple(6) && setingsFlag) {
         oled.clrScr();
         oled.print("reset", CENTER, 0);
@@ -263,7 +267,10 @@ void buttonTick() {
         EEPROM.updateBlock(eeAdr, data);
         delay(700);
     }
+    */
     if (fire.isPress()) {
+        changeTmr.flag = true;
+        changeTmr.reboot();
         sleepTmr.reboot();
         fireOk = true;
     }
@@ -274,7 +281,7 @@ void buttonTick() {
 }
 
 void start() {
-#if debugMode == 1
+#if debugMode == 1 && 0
     Serial.begin(9600);
 #endif
 
@@ -283,10 +290,12 @@ void start() {
     pinMode(mosfet, OUTPUT);
     digitalWrite(mosfet, LOW);
 
-    if (voltCalibr)	calibration();
+#if voltCalibr == 1
+    calibration();
+#endif
     voltConst = EEPROM.readFloat(voltAdr);
 
-    if (EEPROM.readByte(eeAdr - 1) != eeKey) { //запись данных если шо
+    if (EEPROM.readByte(eeAdr - 1) != eeKey) { //запись данных(если неверный ключ)
         dataInit();
         EEPROM.updateBlock(eeAdr, data);
         EEPROM.writeByte(eeAdr - 1, eeKey);
